@@ -7,10 +7,11 @@
 ## Thoughts
 
 - Difference between spelling and grammatical mistakes, but choosing the correct word form depends on grammar
+- Alternatives for spelling correction: https://github.com/wolfgarbe/SymSpell
 - To evaulate performance of pipeline, some manually labeled data is necessary
     - manual POS tagging could be similar to: https://labelstud.io/templates/named_entity or https://labelstud.io/templates/relation_extraction
     - word spelling corrected could be pre-labeled by using a dictionary to find unknown words (however does not work for word form/grammatical mistakes)
-
+- Everything depends on spelling correction
 
 ## Setup
 
