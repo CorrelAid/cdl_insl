@@ -1,0 +1,22 @@
+[project]
+name = "insl"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "bs4>=0.0.2",
+    "dspy>=3.0.0",
+    "jupyter>=1.1.1",
+    "lxml>=6.0.0",
+    "markdownify>=1.2.0",
+    "polars>=1.32.3",
+    "pyarrow>=21.0.0",
+    "python-dotenv>=1.1.1",
+    "requests>=2.32.5",
+    "stanza>=1.10.1",
+    "openai==1.99.5",
+    "spacy>=3.8.7",
+    "pip>=25.2",
+    "spacy-conll>=4.0.1",
+]
