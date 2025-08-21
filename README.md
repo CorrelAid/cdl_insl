@@ -24,3 +24,7 @@
    ```
     uv run spacy download de_core_news_lg
     ```
+4. For dspy LLM functionality, add `.env`
+    ```
+    OR_KEY=sk-or-v1-key
+    ```
