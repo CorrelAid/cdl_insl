@@ -13,3 +13,7 @@ wheels/
 
 # Pycharm files
 .idea/
+
+.pytest_cache/
+
+*/__marimo__/*
