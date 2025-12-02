@@ -1,6 +1,7 @@
 """Spelling correction using DSPy."""
 
 import os
+import threading
 
 import dspy
 import stanza
@@ -12,6 +13,8 @@ load_dotenv()
 # Initialize Stanza tokenizer once
 _tokenizer = None
 _detokenizer = None
+_corrector = None
+_corrector_lock = threading.Lock()
 
 
 def get_detokenizer():
@@ -64,6 +67,7 @@ def init_spelling_corrector(
 ):
     """
     Initialize and return a DSPy spelling corrector.
+    Thread-safe singleton - returns cached corrector if already initialized.
 
     Args:
         provider: One of "openrouter", "modal", or "custom"
@@ -77,7 +81,19 @@ def init_spelling_corrector(
     Raises:
         ValueError: If required credentials are missing
     """
-    examples = [
+    global _corrector
+
+    # Return cached corrector if available
+    if _corrector is not None:
+        return _corrector
+
+    # Thread-safe initialization
+    with _corrector_lock:
+        # Double-check after acquiring lock
+        if _corrector is not None:
+            return _corrector
+
+        examples = [
         # Example: Multiple errors with comma insertion
         dspy.Example(
             tokens=['Herr', 'Jakob', 'so', 'heiß', 'die', 'Haand', 'Figure', '.', 'Herr', 'Jakob', 'ist', 'neben', 'drei', 'männer', 'und', 'die', 'kuken', 'auf', 'dass', 'wasser'],
@@ -109,52 +125,53 @@ def init_spelling_corrector(
             corrected=['Herr', 'Jakob', 'vor', 'dem', 'Brunnen', 'und', 'guckt', 'die', 'Schiffe', 'an', ',', 'die', 'im', 'Brunnen', 'segeln', '.', 'Er', 'ging', 'zurück', '.', 'Er', 'kam', 'wenig', 'später', 'mit', 'einem', 'Karton', 'zurück', '.', 'Als', 'er', 'am', 'Brunnen', 'ankam', ',', 'leerte', 'er', 'den', 'Karton', 'aus', '.', 'Darin', 'waren', 'Schienen', 'und', 'Eisenbahnen', '.', 'Er', 'machte', 'die', 'Schienen', 'um', 'den', 'Brunnen', '.']
         ).with_inputs("tokens")
 
-    ]
+        ]
 
-    # Set defaults based on explicit provider selection
-    headers = {}
+        # Set defaults based on explicit provider selection
+        headers = {}
 
-    if provider == "openrouter":
-        api_base = "https://openrouter.ai/api/v1"
-        if token is None:
-            token = os.getenv("OR_KEY")
-        if model is None:
-            model = "openrouter/mistralai/mistral-small-3.2-24b-instruct"
-        elif not model.startswith("openrouter/"):
-            model = f"openrouter/{model}"
+        if provider == "openrouter":
+            api_base = "https://openrouter.ai/api/v1"
+            if token is None:
+                token = os.getenv("OR_KEY")
+            if model is None:
+                model = "openrouter/mistralai/mistral-small-3.2-24b-instruct"
+            elif not model.startswith("openrouter/"):
+                model = f"openrouter/{model}"
 
-    elif provider == "modal":
-        api_base = os.getenv("MODAL_BASE_URL")
-        if not api_base:
-            raise ValueError("MODAL_BASE_URL environment variable not set")
-        if token is None:
-            token = os.getenv("VLLM_API_KEY")
-        if model is None:
-            model = "openai/mistralai/Mistral-7B-Instruct-v0.3"
-        # Modal needs special auth headers
-        headers["Authorization"] = f"Bearer {token}"
-        if os.getenv("MODAL_TOKEN_ID") and os.getenv("MODAL_TOKEN_SECRET"):
-            headers["Modal-Key"] = os.getenv("MODAL_TOKEN_ID")
-            headers["Modal-Secret"] = os.getenv("MODAL_TOKEN_SECRET")
+        elif provider == "modal":
+            api_base = os.getenv("MODAL_BASE_URL")
+            if not api_base:
+                raise ValueError("MODAL_BASE_URL environment variable not set")
+            if token is None:
+                token = os.getenv("VLLM_API_KEY")
+            if model is None:
+                model = "openai/mistralai/Mistral-7B-Instruct-v0.3"
+            # Modal needs special auth headers
+            headers["Authorization"] = f"Bearer {token}"
+            if os.getenv("MODAL_TOKEN_ID") and os.getenv("MODAL_TOKEN_SECRET"):
+                headers["Modal-Key"] = os.getenv("MODAL_TOKEN_ID")
+                headers["Modal-Secret"] = os.getenv("MODAL_TOKEN_SECRET")
 
-    elif provider == "custom":
-        if not api_base:
-            raise ValueError("api_base required for custom provider")
-        if model is None:
-            model = "openai/custom-model"
-        # token may be None for custom endpoints that don't require auth
-    else:
-        raise ValueError(f"Unknown provider: {provider}. Must be 'openrouter', 'modal', or 'custom'")
+        elif provider == "custom":
+            if not api_base:
+                raise ValueError("api_base required for custom provider")
+            if model is None:
+                model = "openai/custom-model"
+            # token may be None for custom endpoints that don't require auth
+        else:
+            raise ValueError(f"Unknown provider: {provider}. Must be 'openrouter', 'modal', or 'custom'")
 
-    if not token and provider != "custom":
-        env_var = "OR_KEY" if provider == "openrouter" else "VLLM_API_KEY"
-        raise ValueError(f"API key not provided. Set token parameter or {env_var} env var")
+        if not token and provider != "custom":
+            env_var = "OR_KEY" if provider == "openrouter" else "VLLM_API_KEY"
+            raise ValueError(f"API key not provided. Set token parameter or {env_var} env var")
 
-    lm = dspy.LM(model, api_key=token, api_base=api_base, headers=headers,cache=False)
-    dspy.configure(lm=lm)
-    prog = dspy.Predict(SpellingCorrection)
-    teleprompter = dspy.LabeledFewShot()
-    return teleprompter.compile(prog, trainset=examples)
+        lm = dspy.LM(model, api_key=token, api_base=api_base, headers=headers,cache=False)
+        dspy.configure(lm=lm)
+        prog = dspy.Predict(SpellingCorrection)
+        teleprompter = dspy.LabeledFewShot()
+        _corrector = teleprompter.compile(prog, trainset=examples)
+        return _corrector
 
 
 def tokenize_text(text: str) -> list[str]:

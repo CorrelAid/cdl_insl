@@ -1,6 +1,8 @@
 """Tests for correction module with multiple LLM providers."""
 
 import os
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
 
 import pytest
@@ -145,3 +147,61 @@ def test_correct_spelling_with_string(sample_text):
 
     assert isinstance(corrected, str)
     assert len(corrected) > 0
+
+
+def test_init_spelling_corrector_thread_safety():
+    """Test that init_spelling_corrector is thread-safe and returns singleton."""
+    with patch.dict(os.environ, {"OR_KEY": "test-key"}, clear=False):
+        # Reset the global corrector to test fresh initialization
+        import insl.correction
+        insl.correction._corrector = None
+
+        results = []
+        errors = []
+
+        def init_corrector():
+            try:
+                corrector = init_spelling_corrector(provider="openrouter")
+                results.append(id(corrector))  # Store object ID
+            except Exception as e:
+                errors.append(e)
+
+        # Run 10 threads trying to initialize simultaneously
+        threads = []
+        for _ in range(10):
+            thread = threading.Thread(target=init_corrector)
+            threads.append(thread)
+            thread.start()
+
+        # Wait for all threads to complete
+        for thread in threads:
+            thread.join()
+
+        # Should have no errors
+        assert len(errors) == 0, f"Errors occurred: {errors}"
+
+        # All threads should get the same corrector instance (same ID)
+        assert len(results) == 10
+        assert len(set(results)) == 1, "Multiple corrector instances created"
+
+
+def test_init_spelling_corrector_concurrent_calls():
+    """Test concurrent corrector initialization using ThreadPoolExecutor."""
+    with patch.dict(os.environ, {"OR_KEY": "test-key"}, clear=False):
+        # Reset the global corrector
+        import insl.correction
+        insl.correction._corrector = None
+
+        def get_corrector(_):
+            return init_spelling_corrector(provider="openrouter")
+
+        # Use ThreadPoolExecutor to run 20 concurrent initializations
+        with ThreadPoolExecutor(max_workers=20) as executor:
+            correctors = list(executor.map(get_corrector, range(20)))
+
+        # All should be the same instance
+        corrector_ids = [id(c) for c in correctors]
+        assert len(set(corrector_ids)) == 1, "Multiple corrector instances created concurrently"
+
+        # All should be callable
+        assert all(hasattr(c, '__call__') for c in correctors)

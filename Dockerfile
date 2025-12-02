@@ -40,7 +40,7 @@ COPY src/ ./src/
 RUN .venv/bin/pip install -e . --no-deps
 
 # Download stanza models
-RUN .venv/bin/python -c "import stanza; stanza.download('de', model_dir='/root/.stanza_models')"
+RUN .venv/bin/python -c "import stanza; stanza.download('de', model_dir='/root/.stanza_models', download_method=stanza.DownloadMethod.DOWNLOAD_RESOURCES)"
 
 # Copy notebooks
 COPY --link marimo /app/notebooks
