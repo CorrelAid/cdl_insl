@@ -8,14 +8,9 @@ services:
     volumes:
       # Optional for development: mount notebooks from host (uncomment if needed)
       # - ./marimo:/app/notebooks:ro
-      # Persist Stanza models (must match path used by the image/entrypoint)
-      - stanza-models:/app/.stanza_models
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request,sys; resp=urllib.request.urlopen('http://127.0.0.1:8080/health'); sys.exit(0 if getattr(resp,'status',200)==200 else 1)\""]
       interval: 30s
       timeout: 10s
       retries: 3
-
-volumes:
-  stanza-models:

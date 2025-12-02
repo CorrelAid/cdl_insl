@@ -39,9 +39,6 @@ COPY src/ ./src/
 # Install package in editable mode
 RUN .venv/bin/pip install -e . --no-deps
 
-# Download stanza models
-RUN .venv/bin/python -c "import stanza; stanza.download('de', model_dir='/root/.stanza_models', download_method=stanza.DownloadMethod.DOWNLOAD_RESOURCES)"
-
 # Copy notebooks
 COPY --link marimo /app/notebooks
 
@@ -57,15 +54,12 @@ WORKDIR /app
 COPY --from=builder /app/.venv /app/.venv
 COPY --from=builder /app/src /app/src
 COPY --from=builder /app/notebooks /app/notebooks
-COPY --from=builder /root/.stanza_models /app/.stanza_models
 
 # user and permission setup
 RUN useradd -m app_user && \
     chown -R app_user:app_user /app && \
     rm -rf /root/.cache /tmp/*
 USER app_user
-
-ENV STANZA_RESOURCES_DIR=/app/.stanza_models
 
 EXPOSE 8080
 CMD [".venv/bin/marimo","run","--host","0.0.0.0","-p","8080","--headless","--include-code","/app/notebooks/count_verbs_compare.py"]
