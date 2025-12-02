@@ -27,7 +27,11 @@ RUN --mount=type=cache,id=pip-cache,target=/root/.cache/pip \
     --no-install-package nvidia-cusparselt-cu12 \
     --no-install-package nvidia-cusparse-cu12 \
     --no-install-package nvidia-nvtx-cu12 \
-    --no-install-package nvidia-nvshmem-cu12
+    --no-install-package nvidia-nvshmem-cu12 \
+    --no-install-package nvidia-cuda-cupti-cu12 \
+    --no-install-package nvidia-cuda-nvrtc-cu12 \
+    --no-install-package nvidia-cufile-cu12 \
+    --no-install-package nvidia-nvjitlink-cu12
 
 # Copy source
 COPY src/ ./src/
@@ -43,6 +47,9 @@ COPY --link marimo /app/notebooks
 
 # Final stage
 FROM pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime
+
+# Install wget for healthchecks
+RUN apt-get update && apt-get install -y wget && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 

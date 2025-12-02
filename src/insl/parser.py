@@ -17,7 +17,7 @@ def init_parser():
         processors='tokenize,mwt,pos,lemma,depparse',
         download_method=stanza.DownloadMethod.REUSE_RESOURCES,
         model_dir=str(model_dir),
-        verbose=False  # Reduce logging
+        verbose=True
     )
 
 
