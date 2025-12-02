@@ -73,3 +73,6 @@ uv run marimo edit marimo/count_verbs_single.py
 
 ## Docker Build
 
+```
+docker build . --load -t correlaid/cdl-insl
+```
