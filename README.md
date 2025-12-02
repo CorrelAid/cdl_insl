@@ -70,3 +70,6 @@ uv run pytest
 # Edit notebooks interactively
 uv run marimo edit marimo/count_verbs_single.py
 ```
+
+## Docker Build
+
