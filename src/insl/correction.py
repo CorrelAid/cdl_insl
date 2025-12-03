@@ -83,6 +83,23 @@ def init_spelling_corrector(
     """
     global _corrector
 
+    # Validate inputs BEFORE checking cache to ensure errors are always raised
+    if provider not in ["openrouter", "modal", "custom"]:
+        raise ValueError(f"Unknown provider: {provider}. Must be 'openrouter', 'modal', or 'custom'")
+
+    if provider == "custom" and not api_base:
+        raise ValueError("api_base required for custom provider")
+
+    # Validate API key is available
+    if provider == "openrouter" and token is None:
+        token = os.getenv("OR_KEY")
+        if not token:
+            raise ValueError("API key not provided. Set token parameter or OR_KEY env var")
+    elif provider == "modal" and token is None:
+        token = os.getenv("VLLM_API_KEY")
+        if not token:
+            raise ValueError("API key not provided. Set token parameter or VLLM_API_KEY env var")
+
     # Return cached corrector if available
     if _corrector is not None:
         return _corrector
@@ -132,8 +149,7 @@ def init_spelling_corrector(
 
         if provider == "openrouter":
             api_base = "https://openrouter.ai/api/v1"
-            if token is None:
-                token = os.getenv("OR_KEY")
+            # token was already validated and fetched above
             if model is None:
                 model = "openrouter/mistralai/mistral-small-3.2-24b-instruct"
             elif not model.startswith("openrouter/"):
@@ -143,8 +159,7 @@ def init_spelling_corrector(
             api_base = os.getenv("MODAL_BASE_URL")
             if not api_base:
                 raise ValueError("MODAL_BASE_URL environment variable not set")
-            if token is None:
-                token = os.getenv("VLLM_API_KEY")
+            # token was already validated and fetched above
             if model is None:
                 model = "openai/mistralai/Mistral-7B-Instruct-v0.3"
             # Modal needs special auth headers
@@ -154,20 +169,22 @@ def init_spelling_corrector(
                 headers["Modal-Secret"] = os.getenv("MODAL_TOKEN_SECRET")
 
         elif provider == "custom":
-            if not api_base:
-                raise ValueError("api_base required for custom provider")
             if model is None:
                 model = "openai/custom-model"
             # token may be None for custom endpoints that don't require auth
-        else:
-            raise ValueError(f"Unknown provider: {provider}. Must be 'openrouter', 'modal', or 'custom'")
 
-        if not token and provider != "custom":
-            env_var = "OR_KEY" if provider == "openrouter" else "VLLM_API_KEY"
-            raise ValueError(f"API key not provided. Set token parameter or {env_var} env var")
+        lm = dspy.LM(model, api_key=token, api_base=api_base, headers=headers,cache=True)
 
-        lm = dspy.LM(model, api_key=token, api_base=api_base, headers=headers,cache=False)
-        dspy.configure(lm=lm)
+        # Configure dspy, handling thread safety
+        try:
+            dspy.configure(lm=lm)
+        except RuntimeError as e:
+            if "dspy.settings can only be changed by the thread" in str(e):
+                # Another thread already configured dspy, which is fine for our singleton pattern
+                # We'll still create the corrector with the current LM
+                pass
+            else:
+                raise
         prog = dspy.Predict(SpellingCorrection)
         teleprompter = dspy.LabeledFewShot()
         _corrector = teleprompter.compile(prog, trainset=examples)
